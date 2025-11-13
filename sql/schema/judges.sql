@@ -24,5 +24,5 @@ CREATE TABLE IF NOT EXISTS judges (
     
     -- Timestamps
     created_ts TIMESTAMP,
-    modified_ts DATETIME
+    modified_ts TIMESTAMP
 );
