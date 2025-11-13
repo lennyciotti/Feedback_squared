@@ -23,6 +23,6 @@ CREATE TABLE IF NOT EXISTS judges (
     judge_3_content TEXT,
     
     -- Timestamps
-    created_ts DATETIME,
+    created_ts TIMESTAMP,
     modified_ts DATETIME
 );
