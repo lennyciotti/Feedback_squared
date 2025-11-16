@@ -21,7 +21,7 @@ client = OpenAI(
     base_url="https://us.api.openai.com/v1"
 )
 
-# --- Knowledge and Grammar Scales ---
+# --- Knowledge, Grammar, Flow Levels ---
 
 knowledge_levels = {
     1: "no knowledge",
@@ -38,74 +38,46 @@ grammar_levels = {
     4: "good grammar and structure",
     5: "great form, grammar and a broad vocabulary"
 }
+
 flow_levels = {
     1: "poor flow and organization. There is no thesis",
     2: "weak flow with some organization issues, the thesis is unclear",
-    3: "adequate flow and organization,the theis is in the first paragraph and the conclusion is in the last ",
-    4: "good flow and well-organized.The thesis is clear and the conclusion summarizes the main points. The ideas flow logically from paragraph to paragraph",
+    3: "adequate flow and organization, the thesis is in the first paragraph and the conclusion is in the last",
+    4: "good flow and well-organized. The thesis is clear and the conclusion summarizes the main points. The ideas flow logically from paragraph to paragraph",
     5: "excellent flow and highly organized. The thesis is compelling and well-placed, and the conclusion effectively reinforces the main arguments. Transitions between paragraphs are smooth and enhance readability."
 }
+
 # --- Sampling Functions ---
 
 def sample_knowledge(n):
-    """
-    Returns a list of knowledge levels (1–5) using a normal distribution.
-    Centered at 3.5 with sigma=1 → most values around 3–4.
-    """
-    samples = []
-    for _ in range(n):
-        level = round(random.gauss(mu=3.5, sigma=1))
-        level = max(1, min(5, level))  # Clamp to 1–5
-        samples.append(level)
-    return samples
+    return [max(1, min(5, round(random.gauss(mu=1.5, sigma=1)))) for _ in range(n)]
 
-def sample_grammar_from_knowledge(knowledge_level):
-    """
-    Returns a grammar level based on knowledge level ±1 (clamped between 1 and 5).
-    Simulates correlation between knowledge and grammar.
-    """
-    delta = random.choice([-1, 0, 1])
-    grammar_level = max(1, min(5, knowledge_level + delta))
-    return grammar_level
+def sample_grammar_from_knowledge(k):
+    return max(1, min(5, k + random.choice([-1, 0, 1])))
 
-def sample_flow_from_knowledge(knowledge_level):
-    """
-    Returns a flow level based on knowledge level ±1 (clamped between 1 and 5).
-    Simulates correlation between knowledge and flow.
-    """
-    delta = random.choice([-1, 0, 1])
-    flow_level = max(1, min(5, knowledge_level + delta))
-    return flow_level
+def sample_flow_from_knowledge(k):
+    return max(1, min(5, k + random.choice([-1, 0, 1])))
 
-
-def generate_level_pairs(n):
-    """
-    Generate n (knowledge, grammar) level pairs using bell-curve for knowledge
-    and ±1 rule for grammar.
-    """
-    triplet = []
+def generate_level_triplets(n):
+    triplets = []
     knowledge_samples = sample_knowledge(n)
     for k in knowledge_samples:
         g = sample_grammar_from_knowledge(k)
         f = sample_flow_from_knowledge(k)
-        triplet.append({
+        triplets.append({
             "knowledge_level": k,
             "knowledge_desc": knowledge_levels[k],
             "grammar_level": g,
             "grammar_desc": grammar_levels[g],
             "flow_level": f,
             "flow_desc": flow_levels[f]
-
         })
-    return triplet
+    return triplets
 
 # --- OpenAI Text Generation ---
 
 def text_generation(system_role: str, user_msg: str, prompt: str, sections: dict | None = None,
                     model: str = "gpt-4o-mini", temperature: float = 1.0):
-    """
-    Wrapper for OpenAI text generation using the Responses API.
-    """
     user_parts = [prompt]
     for label, content in (sections or {}).items():
         user_parts.append(f"{label}:\n{content}")
@@ -120,49 +92,46 @@ def text_generation(system_role: str, user_msg: str, prompt: str, sections: dict
         temperature=temperature,
     )
     text = (getattr(resp, "output_text", "") or "").strip()
-    usage = getattr(resp, "usage", None)
-    if usage is not None and not isinstance(usage, dict):
-        usage = getattr(usage, "__dict__", None)
-    return text, usage
+    return text, getattr(resp, "usage", None)
 
-# --- Persona Building ---
+# --- Persona + Competency Prompts ---
 
 def build_student_agent(grade_level: str, subject: str, assignment_type: str, topic: str) -> str:
-    """
-    Builds a student persona for the essay generation context.
-    """
-    return f"You are a {grade_level} student completing a {assignment_type} for your {subject} class on the topic of '{topic}'. 5% of the times, you will put the thesis not in the first paragrah."
+    return (
+        f"You are a {grade_level} student completing a {assignment_type} for your {subject} class "
+        f"on the topic of '{topic}'. Write only with the skills you have. Do not overperform. "
+        f"Your grammar, structure, and analysis must match your described competency. Do not write beyond your level."
+    )
 
-def competency_level(knowledge_desc: str, grammar_desc: str) -> str:
-    """
-    Combine knowledge and grammar descriptors into a single student competency description.
-    """
-    return f"You demonstrate {knowledge_desc}, and your writing shows {grammar_desc}."
+def competency_level(knowledge_desc: str, grammar_desc: str, flow_desc: str) -> str:
+    return (
+        f"Write this essay as if the student has {knowledge_desc}, uses {grammar_desc}, "
+        f"and demonstrates {flow_desc}. Reflect these limitations or strengths in vocabulary, grammar, "
+        f"organization, transitions, and clarity. Do not exceed the student's ability level. Let the essay reflect these competencies."
+    )
 
-# --- Essay Generation Pipeline ---
+# --- Essay Generator ---
 
 def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: str, prompt: str, model="gpt-4o-mini") -> pd.DataFrame:
-    """
-    Generates n essays using randomized competency levels and stores them in a pandas DataFrame.
-    """
     topic_clean = topic.lower().replace(" ", "_")
     student_agent = build_student_agent(grade_level, subject, assignment_type, topic)
 
-    level_pairs = generate_level_pairs(n)
+    level_triplets = generate_level_triplets(n)
     data_rows = []
 
-    for i, pair in enumerate(level_pairs):
-        k_desc = pair["knowledge_desc"]
-        g_desc = pair["grammar_desc"]
-        f_desc = pair["flow_desc"]
+    for i, triplet in enumerate(level_triplets):
+        k_desc = triplet["knowledge_desc"]
+        g_desc = triplet["grammar_desc"]
+        f_desc = triplet["flow_desc"]
 
-        student_competency = competency_level(k_desc, g_desc)
+        competency_msg = competency_level(k_desc, g_desc, f_desc)
 
-        print(f"🧠 Essay {i+1}: Knowledge={pair['knowledge_level']} ({k_desc}), Grammar={pair['grammar_level']} ({g_desc}), Flow={pair['flow_level']} ({f_desc})")
+        print(f"\n🧠 Essay {i+1}: Knowledge={triplet['knowledge_level']} ({k_desc}), "
+              f"Grammar={triplet['grammar_level']} ({g_desc}), Flow={triplet['flow_level']} ({f_desc})")
 
         essay_text, _ = text_generation(
             system_role=student_agent,
-            user_msg=student_competency,
+            user_msg=competency_msg,
             prompt=prompt,
             model=model,
         )
@@ -171,31 +140,25 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
             "title": topic.title(),
             "subject": subject,
             "grade": grade_level,
-            "knowledge level": f"{pair['knowledge_level']} - {k_desc}",
-            "grammar level": f"{pair['grammar_level']} - {g_desc}",
-            "flow level": f"{pair['flow_level']} - {f_desc}",
+            "knowledge level": f"{triplet['knowledge_level']} - {k_desc}",
+            "grammar level": f"{triplet['grammar_level']} - {g_desc}",
+            "flow level": f"{triplet['flow_level']} - {f_desc}",
             "essay": essay_text
         })
 
-    # Create DataFrame
     df = pd.DataFrame(data_rows)
-
-    # Optional: save to file
     filename = f"essays_{topic_clean}.csv"
     df.to_csv(filename, index=False, encoding="utf-8")
-    print(f"📄 Saved {n} essays to {filename}")
-
+    print(f"\n📄 Saved {n} essays to {filename}")
     return df
 
-# --- Example Usage ---
+# --- Run ---
 if __name__ == "__main__":
     essay_gen(
         n=6,
-        topic="The Great Gatsby",
-        grade_level="10th grade",
+        topic="Othello by William Shakespeare",
+        grade_level="9th grade",
         subject="English",
         assignment_type="essay",
         prompt="Write an essay of 5 to 7 paragraphs with an introduction, thesis, and conclusion. Discuss themes, character development, and symbolism."
     )
-
-
