@@ -50,7 +50,7 @@ flow_levels = {
 # --- Sampling Functions ---
 
 def sample_knowledge(n):
-    return [max(1, min(5, round(random.gauss(mu=1.5, sigma=1)))) for _ in range(n)]
+    return [max(1, min(5, round(random.gauss(mu=2.5, sigma=1)))) for _ in range(n)]
 
 def sample_grammar_from_knowledge(k):
     return max(1, min(5, k + random.choice([-1, 0, 1])))
@@ -76,23 +76,35 @@ def generate_level_triplets(n):
 
 # --- OpenAI Text Generation ---
 
-def text_generation(system_role: str, user_msg: str, prompt: str, sections: dict | None = None,
-                    model: str = "gpt-4o-mini", temperature: float = 1.0):
-    user_parts = [prompt]
-    for label, content in (sections or {}).items():
-        user_parts.append(f"{label}:\n{content}")
-    user_msg = "\n\n".join(user_parts)
+def text_generation(system_role: str, user_msg: str, prompt: str,
+                    sections: dict | None = None,
+                    model: str = "gpt-4o-mini",
+                    temperature: float = 1.0):
+    """
+    Uses the system_role and user_msg (competency descriptor) in the actual prompt.
+    Properly injects all behavior-setting context.
+    """
+    # Combine user_msg (competency) and prompt (assignment) into a single user message
+    user_content = f"{user_msg}\n\n{prompt}"
 
+    # Add any additional structured sections (optional)
+    if sections:
+        for label, content in sections.items():
+            user_content += f"\n\n{label}:\n{content}"
+
+    # Send to OpenAI
     resp = client.responses.create(
         model=model,
         input=[
             {"role": "system", "content": system_role},
-            {"role": "user", "content": user_msg},
+            {"role": "user", "content": user_content},
         ],
         temperature=temperature,
     )
+
     text = (getattr(resp, "output_text", "") or "").strip()
     return text, getattr(resp, "usage", None)
+
 
 # --- Persona + Competency Prompts ---
 
@@ -155,10 +167,10 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
 # --- Run ---
 if __name__ == "__main__":
     essay_gen(
-        n=6,
-        topic="Othello by William Shakespeare",
+        n=10,
+        topic="1984 by George Orwell",
         grade_level="9th grade",
         subject="English",
         assignment_type="essay",
-        prompt="Write an essay of 5 to 7 paragraphs with an introduction, thesis, and conclusion. Discuss themes, character development, and symbolism."
+        prompt="Write an essay of 5 to 7 paragraphs according to the specified competencies."
     )
