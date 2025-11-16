@@ -1,4 +1,5 @@
 import random
+import uuid
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -149,6 +150,7 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
         )
 
         data_rows.append({
+            "essay_id": uuid.uuid4().hex[:8],
             "title": topic.title(),
             "subject": subject,
             "grade": grade_level,
@@ -167,8 +169,8 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
 # --- Run ---
 if __name__ == "__main__":
     essay_gen(
-        n=10,
-        topic="1984 by George Orwell",
+        n=1,
+        topic="animal farm by George Orwell",
         grade_level="9th grade",
         subject="English",
         assignment_type="essay",
