@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 import pandas as pd
 
 # --- Environment Setup ---
-load_dotenv()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(script_dir, ".env")
+load_dotenv(env_path)
+
 api_key = os.getenv("OPENAI_API_KEY")
 
 if api_key:
@@ -13,7 +16,10 @@ if api_key:
 else:
     print("❌ OpenAI API key NOT loaded.")
 
-client = OpenAI()
+client = OpenAI(
+    api_key=api_key,
+    base_url="https://us.api.openai.com/v1"
+)
 
 # --- Knowledge and Grammar Scales ---
 
@@ -193,6 +199,3 @@ if __name__ == "__main__":
     )
 
 
-
-###Add flow vector to ard code. 
-# add knowledge, flow, grammar, grade, topic to title of essays""
