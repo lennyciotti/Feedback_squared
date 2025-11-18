@@ -4,6 +4,7 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import pandas as pd
+from datetime import datetime
 
 # --- Environment Setup ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -128,7 +129,7 @@ def competency_level(knowledge_desc: str, grammar_desc: str, flow_desc: str) -> 
 def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: str, prompt: str, model="gpt-4o-mini") -> pd.DataFrame:
     topic_clean = topic.lower().replace(" ", "_")
     student_agent = build_student_agent(grade_level, subject, assignment_type, topic)
-
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     level_triplets = generate_level_triplets(n)
     data_rows = []
 
@@ -151,6 +152,7 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
 
         data_rows.append({
             "essay_id": uuid.uuid4().hex[:8],
+            "created_at": timestamp,
             "title": topic.title(),
             "subject": subject,
             "grade": grade_level,
@@ -159,7 +161,7 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
             "flow level": f"{triplet['flow_level']} - {f_desc}",
             "essay": essay_text
         })
-
+    
     df = pd.DataFrame(data_rows)
     filename = f"essays_{topic_clean}.csv"
     df.to_csv(filename, index=False, encoding="utf-8")
@@ -169,10 +171,10 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
 # --- Run ---
 if __name__ == "__main__":
     essay_gen(
-        n=1,
-        topic="animal farm by George Orwell",
-        grade_level="9th grade",
-        subject="English",
+        n=10,
+        topic="The impact of Darwinism on social movements",
+        grade_level="12th grade",
+        subject="Social Studies",
         assignment_type="essay",
         prompt="Write an essay of 5 to 7 paragraphs according to the specified competencies."
     )
