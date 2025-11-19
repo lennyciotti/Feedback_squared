@@ -172,9 +172,9 @@ def essay_gen(n, topic: str, grade_level: str, subject: str, assignment_type: st
 if __name__ == "__main__":
     essay_gen(
         n=10,
-        topic="The impact of Darwinism on social movements",
+        topic="Food Deserts: Analyze the geographic and economic factors that create urban food deserts, and propose an effective, locally-driven policy solution.",
         grade_level="12th grade",
-        subject="Social Studies",
+        subject="Social studies",
         assignment_type="essay",
         prompt="Write an essay of 5 to 7 paragraphs according to the specified competencies."
     )
